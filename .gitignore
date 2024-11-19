@@ -2,6 +2,8 @@
 Project/
 Output/
 build/
+Listings/
+Objects/
 *.o
 *.d
 *.elf

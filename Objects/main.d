@@ -32,3 +32,5 @@
 .\objects\main.o: .\Hardware\OLED.h
 .\objects\main.o: .\Hardware\Serial.h
 .\objects\main.o: D:\Keil5\ARM\ARMCC\Bin\..\include\stdio.h
+.\objects\main.o: .\Hardware\Encoder.h
+.\objects\main.o: .\Hardware\Motor.h
