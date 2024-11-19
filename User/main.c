@@ -23,26 +23,20 @@ int main(void)
 	{
 		YIXIN_SendCommand();
 		Delay_ms(1000);
-		//BA111_Getsensordata(); 
-//		
-		OLED_ShowHexNum(3, 2, Serial_RxPacket[0], 2);
-		OLED_ShowHexNum(3, 4, Serial_RxPacket[1], 2);	//显示串口接收的数据
-		OLED_ShowHexNum(3, 6, Serial_RxPacket[2], 2);
-		OLED_ShowHexNum(3, 8, Serial_RxPacket[3], 2);
-		OLED_ShowHexNum(3, 10,Serial_RxPacket[4], 2);
-		OLED_ShowHexNum(3, 12,Serial_RxPacket[5], 2);
-		OLED_ShowHexNum(3, 14,Serial_RxPacket[6], 2);
-		OLED_ShowHexNum(4, 1,Serial_RxPacket[7], 2);
-		OLED_ShowHexNum(4, 3,Serial_RxPacket[8], 2);
-		OLED_ShowHexNum(4, 5,Serial_RxPacket[9], 2);
-		OLED_ShowHexNum(4, 7,Serial_RxPacket[10], 2);
+//		OLED_ShowHexNum(3, 2, Serial_RxPacket[0], 2);
+//		OLED_ShowHexNum(3, 4, Serial_RxPacket[1], 2);	//显示串口接收的数据
+//		OLED_ShowHexNum(3, 6, Serial_RxPacket[2], 2);
+//		OLED_ShowHexNum(3, 8, Serial_RxPacket[3], 2);
+//		OLED_ShowHexNum(3, 10,Serial_RxPacket[4], 2);
+//		OLED_ShowHexNum(3, 12,Serial_RxPacket[5], 2);
+//		OLED_ShowHexNum(3, 14,Serial_RxPacket[6], 2);
+//		OLED_ShowHexNum(4, 1,Serial_RxPacket[7], 2);
+//		OLED_ShowHexNum(4, 3,Serial_RxPacket[8], 2);
+//		OLED_ShowHexNum(4, 5,Serial_RxPacket[9], 2);
+//		OLED_ShowHexNum(4, 7,Serial_RxPacket[10], 2);
+		
 		Sdata = YIXIN_ParseData();
-//		//Sdata = BA111_ParseData(); // 更新全局的data
-//		OLED_ShowString(2, 1, "TDS:"); // 重新打印，避免闪烁
 		OLED_ShowNum(1, 10, Sdata.tds, 4);
-//		printf("TDS:%d",Sdata.tds);
-//		OLED_ShowString(3, 1, "TEM:");
-//		printf("TDS:%d",Sdata.tds);
 		OLED_ShowNum(2, 5, Sdata.temp, 3);
 		Delay_ms(100);  // 为显示更新留出时间
 		
