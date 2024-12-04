@@ -4,9 +4,16 @@
 #include <stdarg.h>
 #include <Serial.h>
 #include <Delay.h>
+
+// 全局变量定义，针对串口2增加相应的接收缓冲区和标志位
+uint16_t Serial2_TxPacket[8];
+uint16_t Serial2_RxPacket[11];
+uint8_t Serial2_RxFlag;
+
 uint16_t Serial_TxPacket[8];   //外部使用，用extern，或者用GET函数，指针传递；即可在其他的文件中使用
 uint16_t Serial_RxPacket[11];
 SensorData Sdata = {0, 0,0.0};
+SensorData S2data = {0, 0,0.0};
 //uint8_t RxData;		//定义串口接收的数据变量
 uint8_t Serial_RxFlag;		//定义串口接收的标志位变量
 /**
@@ -60,6 +67,52 @@ void Serial_Init(void)
 	USART_Cmd(USART1, ENABLE);								//使能USART1，串口开始运行
 }
 
+// 串口2初始化函数
+void Serial2_Init(void)
+{
+    // 开启时钟
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+
+    // GPIO初始化
+    GPIO_InitTypeDef GPIO_InitStructure;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+    // USART初始化
+    USART_InitTypeDef USART_InitStructure;
+    USART_InitStructure.USART_BaudRate = 9600;
+    USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
+    USART_InitStructure.USART_Mode = USART_Mode_Tx | USART_Mode_Rx;
+    USART_InitStructure.USART_Parity = USART_Parity_No;
+    USART_InitStructure.USART_StopBits = USART_StopBits_1;
+    USART_InitStructure.USART_WordLength = USART_WordLength_8b;
+    USART_Init(USART2, &USART_InitStructure);
+
+    // 中断输出配置（如果需要）
+    USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
+
+    // NVIC中断分组
+    NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
+
+    // NVIC配置
+    NVIC_InitTypeDef NVIC_InitStructure;
+    NVIC_InitStructure.NVIC_IRQChannel = USART2_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 2;
+    NVIC_Init(&NVIC_InitStructure);
+
+    // USART使能
+    USART_Cmd(USART2, ENABLE);
+}
 /**
   * 函    数：串口发送一个字节
   * 参    数：Byte 要发送的一个字节
@@ -70,6 +123,13 @@ void Serial_SendByte(uint8_t Byte)
 	USART_SendData(USART1, Byte);		//将字节数据写入数据寄存器，写入后USART自动生成时序波形
 	while (USART_GetFlagStatus(USART1, USART_FLAG_TXE) == RESET);	//等待发送完成
 	/*下次写入数据寄存器会自动清除发送完成标志位，故此循环后，无需清除标志位*/
+}
+
+// 串口2发送一个字节
+void Serial2_SendByte(uint8_t Byte)
+{
+    USART_SendData(USART2, Byte);
+    while (USART_GetFlagStatus(USART2, USART_FLAG_TXE) == RESET);
 }
 
 /**
@@ -86,7 +146,15 @@ void Serial_SendArray(uint16_t *Array, uint16_t Length)
 		Serial_SendByte(Array[i]);		//依次调用Serial_SendByte发送每个字节数据
 	}
 }
-
+// 串口2发送一个数组
+void Serial2_SendArray(uint16_t *Array, uint16_t Length)
+{
+    uint16_t i;
+    for (i = 0; i < Length; i ++)
+    {
+        Serial2_SendByte(Array[i]);
+    }
+}
 /**
   * 函    数：串口发送一个字符串
   * 参    数：String 要发送字符串的首地址
@@ -101,6 +169,15 @@ void Serial_SendString(char *String)
 	}
 }
 
+// 串口2发送一个字符串
+void Serial2_SendString(char *String)
+{
+    uint8_t i;
+    for (i = 0; String[i]!= '\0'; i ++)
+    {
+        Serial2_SendByte(String[i]);
+    }
+}
 /**
   * 函    数：次方函数（内部使用）
   * 返 回 值：返回值等于X的Y次方
@@ -130,6 +207,15 @@ void Serial_SendNumber(uint32_t Number, uint8_t Length)
 	}
 }
 
+// 串口2发送数字
+void Serial2_SendNumber(uint32_t Number, uint8_t Length)
+{
+    uint8_t i;
+    for (i = 0; i < Length; i ++)
+    {
+        Serial2_SendByte(Number / Serial_Pow(10, Length - i - 1) % 10 + '0');
+    }
+}
 /**
   * 函    数：使用printf需要重定向的底层函数
   * 参    数：保持原始格式即可，无需变动
@@ -156,6 +242,16 @@ void Serial_Printf(char *format, ...)
 	va_end(arg);					//结束变量arg
 	Serial_SendString(String);		//串口发送字符数组（字符串）
 }
+// 串口2自己封装的prinf函数（如果需要）
+void Serial2_Printf(char *format,...)
+{
+    char String[100];
+    va_list arg;
+    va_start(arg, format);
+    vsprintf(String, format, arg);
+    va_end(arg);
+    Serial2_SendString(String);
+}
 
 void Serial_SendPacket(void)
 {
@@ -163,6 +259,11 @@ void Serial_SendPacket(void)
 	Serial_SendArray(Serial_TxPacket, 8);
 	//Serial_SendByte(0xFE);
 	
+}
+// 串口2发送数据包
+void Serial2_SendPacket(void)
+{
+    Serial2_SendArray(Serial2_TxPacket, 8);
 }
 /**
   * 函    数：获取串口接收标志位
@@ -179,6 +280,16 @@ uint8_t Serial_GetRxFlag(void)
 	return 0;						//如果标志位为0，则返回0
 }
 
+// 串口2获取串口接收标志位
+uint8_t Serial2_GetRxFlag(void)
+{
+    if (Serial2_RxFlag == 1)
+    {
+        Serial2_RxFlag = 0;
+        return 1;
+    }
+    return 0;
+}
 
 
 void sendHexData(char *hexString) {
@@ -221,13 +332,57 @@ void sendHexData(char *hexString) {
     }
 }
 
+void sendHexData2(char *hexString) {
+    int hexStringLength = strlen(hexString);
+    if (hexStringLength % 2 != 0) {
+        // 长度为奇数，补零
+        char temp[hexStringLength + 1];
+        strncpy(temp, hexString, hexStringLength);
+        temp[hexStringLength] = '0';
+        hexString = temp;
+        hexStringLength++;
+    }
+
+    uint8_t i = 0;
+    while (i < hexStringLength) {
+        uint8_t hexValueHigh = 0;
+        uint8_t hexValueLow = 0;
+        if (hexString[i] >= '0' && hexString[i] <= '9') {
+            hexValueHigh = hexString[i] - '0';
+        } else if (hexString[i] >= 'A' && hexString[i] <= 'F') {
+            hexValueHigh = hexString[i] - 'A' + 10;
+        } else if (hexString[i] >= 'a' && hexString[i] <= 'f') {
+            hexValueHigh = hexString[i] - 'a' + 10;
+        }
+        i++;
+
+        if (i < hexStringLength) {
+            if (hexString[i] >= '0' && hexString[i] <= '9') {
+                hexValueLow = hexString[i] - '0';
+            } else if (hexString[i] >= 'A' && hexString[i] <= 'F') {
+                hexValueLow = hexString[i] - 'A' + 10;
+            } else if (hexString[i] >= 'a' && hexString[i] <= 'f') {
+                hexValueLow = hexString[i] - 'a' + 10;
+            }
+            i++;
+
+            uint8_t byte = (hexValueHigh << 4) | hexValueLow;
+            Serial2_SendByte(byte);
+        }
+    }
+}
 //铱鑫电子获取数据命令
 void YIXIN_SendCommand()
 {
 	char *cmd = "5507050100000062";
 	sendHexData(cmd);
 }
-
+//铱鑫电子获取数据命令
+void YIXIN2_SendCommand()
+{
+	char *cmd = "5507050100000062";
+	sendHexData2(cmd);
+}
 
 SensorData YIXIN_ParseData(void) {
     if (Serial_GetRxFlag()) {
@@ -252,7 +407,29 @@ SensorData YIXIN_ParseData(void) {
     }
     return Sdata;
 }
+SensorData YIXIN2_ParseData(void) {
+    if (Serial2_GetRxFlag()) {
+            if (Serial2_RxPacket[0] == 0x55 && Serial2_RxPacket[1] == 0x0a && Serial2_RxPacket[2] == 0x85 && Serial2_RxPacket[3] == 0x01){
+                int tempAdc = (Serial2_RxPacket[6] << 8) | Serial2_RxPacket[7];
+                int condAdc = (Serial2_RxPacket[4] << 8) | Serial2_RxPacket[5];
+                uint8_t checksum = Serial2_RxPacket[10];
+                uint8_t sum = 0;
 
+                for (uint8_t i = 0; i < 10; i++) {
+                    sum += Serial2_RxPacket[i];
+                } 
+                sum = sum & 0xFF;
+
+                if (sum == checksum) {
+					 S2data.temp = tempAdc / 10.0;
+					S2data.cond = condAdc /10;
+					S2data.tds = S2data.cond /2;
+                   // printf("TDS: %d ppm   Temp: %.2f °C\r\n", Sdata.tds, Sdata.temp);
+                }
+            }
+    }
+    return S2data;
+}
 ///**
 //  * 函    数：USART1中断函数
 //  * 参    数：无
@@ -283,3 +460,22 @@ void USART1_IRQHandler(void)
 																//如果已经读取了数据寄存器，也可以不执行此代码
 }
 
+// 串口2的中断处理函数
+void USART2_IRQHandler(void)
+{
+    static uint8_t pRxPacket = 0;
+
+    if (USART_GetITStatus(USART2, USART_IT_RXNE) == SET)
+    {
+        uint8_t RxData = USART_ReceiveData(USART2);
+        Serial2_RxPacket[pRxPacket] = RxData;
+        pRxPacket ++;
+        if (pRxPacket >= 11)
+        {
+            Serial2_RxFlag = 1;
+            pRxPacket = 0;
+        }
+    }
+
+    USART_ClearITPendingBit(USART2, USART_IT_RXNE);
+}
